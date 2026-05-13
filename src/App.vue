@@ -40,14 +40,9 @@
         <p class="desc">{{ item.desc }}</p>
         <div class="card-footer">
           <span class="price">${{ item.price }}</span>
-          <!-- 未加入：顯示加入按鈕 -->
-          <button v-if="getQty(item.id) === 0" class="btn-add" @click="add(item)">+ 加入</button>
-          <!-- 已加入：顯示數量控制 -->
-          <div v-else class="qty-control">
-            <button @click="minus(item.id)">－</button>
-            <span>{{ getQty(item.id) }}</span>
-            <button @click="add(item)">＋</button>
-          </div>
+          <button class="btn-add" @click="add(item)">
+            + 加入 <span v-if="getQty(item.id) > 0">({{ getQty(item.id) }})</span>
+          </button>
         </div>
       </div>
     </div>
@@ -64,11 +59,7 @@
           <span class="cart-item-price">${{ item.price * item.qty }}</span>
         </div>
         <div class="cart-item-actions">
-          <div class="qty-control">
-            <button @click="minus(item.id)">－</button>
-            <span>{{ item.qty }}</span>
-            <button @click="add(item)">＋</button>
-          </div>
+          <span>× {{ item.qty }}</span>
           <button class="btn-remove" @click="remove(item.id)">🗑️</button>
         </div>
       </div>
@@ -166,17 +157,6 @@ function remove(id) {
   cart.value = cart.value.filter(i => String(i.id).trim() !== String(id).trim())
 }
 
-function minus(id) {
-  const found = findCartItem(id)
-  if (found) {
-    if (found.qty > 1) {
-      found.qty--
-    } else {
-      // 當數量為 1 時點擊「－」，自動將該品項從清單中移除
-      remove(id)
-    }
-  }
-}
 function clearCart() {
   if (confirm('確定要清空所有品項嗎？')) cart.value = []
 }
