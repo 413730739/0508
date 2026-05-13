@@ -102,6 +102,10 @@
 Vue.createApp({
   data() {
     return {
+      // 把你的 Apps Script URL 貼在這裡
+    apiUrl: 'https://script.google.com/macros/s/AKfycbyWxzQn064nejZTWhE0LeaQQrTTTtaknWwJwFwncMhpYbts01H5tqV2-TCpZCgJLXR0NA/exec',
+    menu: [],          // 從 API 載入
+    loading: true,     // 載入狀態
       activeCategory: '全部',
       cart: [],   // [{ id, name, emoji, price, qty }]
 
@@ -151,7 +155,45 @@ Vue.createApp({
     placeOrder() {
       alert('訂單已送出！合計 $' + this.totalAmount)
       this.cart = []   // 清空購物車
+    },
+     // 載入菜單
+  async loadMenu() {
+    try {
+      const res  = await fetch(this.apiUrl + '?action=getMenu')
+      const data = await res.json()
+      if (data.success) {
+        this.menu = data.data
+      }
+    } catch (e) {
+      console.error('載入菜單失敗', e)
+    } finally {
+      this.loading = false
     }
+  },
+
+  // 送出訂單
+  async submitOrder() {
+    const res = await fetch(this.apiUrl, {
+      method: 'POST',
+      body: JSON.stringify({
+        action: 'submitOrder',
+        tableNumber: this.tableNumber,
+        items: this.orderItems,
+        totalAmount: this.totalAmount,
+        note: this.note,
+      })
+    })
+    const data = await res.json()
+    if (data.success) {
+      alert('訂單送出成功！編號：' + data.data.orderId)
+      this.cart = []
+    }
+  }
+  },
+
+// 加入生命週期鉤子（頁面載入時自動呼叫）
+mounted() {
+  this.loadMenu()
   }
 
 }).mount('#app')

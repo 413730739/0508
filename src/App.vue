@@ -54,11 +54,23 @@
 
     <!-- 購物車浮層 -->
     <div class="cart-panel" v-if="showCart && cart.length > 0">
-      <h3>訂單明細</h3>
+      <div class="cart-header">
+        <h3>訂單明細</h3>
+        <button class="btn-clear" @click="clearCart">清空</button>
+      </div>
       <div v-for="item in cart" :key="item.id" class="cart-row">
-        <span>{{ item.name }}</span>
-        <span>×{{ item.qty }}</span>
-        <span>${{ item.price * item.qty }}</span>
+        <div class="cart-item-info">
+          <span>{{ item.name }}</span>
+          <span class="cart-item-price">${{ item.price * item.qty }}</span>
+        </div>
+        <div class="cart-item-actions">
+          <div class="qty-control">
+            <button @click="minus(item.id)">－</button>
+            <span>{{ item.qty }}</span>
+            <button @click="add(item)">＋</button>
+          </div>
+          <button class="btn-remove" @click="remove(item.id)">🗑️</button>
+        </div>
       </div>
       <div class="cart-note">
         <label>備註：</label>
@@ -92,7 +104,7 @@
 import { ref, computed, onMounted } from 'vue'
 
 // 資料
-const apiUrl       = ref('https://script.google.com/macros/s/AKfycbxhHW-bUMau5koRy0GKVuXMlWkULPOqfhEHODdHjlmbYKaxP5Gyq7MKAsTrDgSMvnTwiQ/exec')
+const apiUrl       = ref('https://script.google.com/macros/s/AKfycbyWxzQn064nejZTWhE0LeaQQrTTTtaknWwJwFwncMhpYbts01H5tqV2-TCpZCgJLXR0NA/exec')
 const loading      = ref(true)
 const tableNumber  = ref('')
 const note         = ref('')
@@ -133,20 +145,40 @@ onMounted(() => {
   loadMenu()
 })
 
+// 輔助函式：統一購物車品項的比對邏輯，確保 ID 類型一致性
+const findCartItem = (id) => cart.value.find(i => String(i.id).trim() === String(id).trim())
+
 function getQty(id) {
-  return cart.value.find(i => i.id === id)?.qty ?? 0
+  return findCartItem(id)?.qty ?? 0
 }
+
 function add(item) {
-  const found = cart.value.find(i => i.id === item.id)
-  if (found) found.qty++
-  else cart.value.push({ ...item, qty: 1 })
+  const found = findCartItem(item.id)
+  if (found) {
+    found.qty++
+  } else {
+    cart.value.push({ ...item, qty: 1 })
+  }
   showCart.value = true
 }
+
+function remove(id) {
+  cart.value = cart.value.filter(i => String(i.id).trim() !== String(id).trim())
+}
+
 function minus(id) {
-  const found = cart.value.find(i => i.id === id)
-  if (!found) return
-  found.qty--
-  if (found.qty === 0) cart.value = cart.value.filter(i => i.id !== id)
+  const found = findCartItem(id)
+  if (found) {
+    if (found.qty > 1) {
+      found.qty--
+    } else {
+      // 當數量為 1 時點擊「－」，自動將該品項從清單中移除
+      remove(id)
+    }
+  }
+}
+function clearCart() {
+  if (confirm('確定要清空所有品項嗎？')) cart.value = []
 }
 async function submit() {
   try {
@@ -212,7 +244,15 @@ h1 { color: #c84b2f; margin: 0; }
 .qty-control button { width: 24px; height: 24px; border-radius: 50%; background: #2a1f14; color: white; border: none; cursor: pointer; }
 .badge { position: absolute; top: 10px; right: 10px; background: #ffec3d; color: #cf1322; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 .cart-panel { position: fixed; right: 20px; bottom: 20px; width: 300px; background: white; border: 1px solid #ddd; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
-.cart-row   { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
+.cart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.cart-header h3 { margin: 0; }
+.cart-row   { display: flex; flex-direction: column; gap: 8px; font-size: 14px; padding: 10px 0; border-bottom: 1px solid #eee; }
+.cart-item-info { display: flex; justify-content: space-between; font-weight: bold; }
+.cart-item-actions { display: flex; justify-content: space-between; align-items: center; }
+.cart-item-price { color: #c84b2f; }
+.btn-remove { background: none; border: none; cursor: pointer; font-size: 16px; opacity: 0.6; }
+.btn-remove:hover { opacity: 1; }
+.btn-clear { background: #f0f0f0; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer; color: #666; }
 .cart-note  { margin: 10px 0; }
 .cart-note input { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 6px; }
 .cart-total { font-size: 18px; font-weight: bold; color: #c84b2f; margin: 8px 0; }
