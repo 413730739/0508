@@ -95,7 +95,7 @@
 import { ref, computed, onMounted } from 'vue'
 
 // 資料
-const apiUrl       = ref('https://script.google.com/macros/s/AKfycbyWxzQn064nejZTWhE0LeaQQrTTTtaknWwJwFwncMhpYbts01H5tqV2-TCpZCgJLXR0NA/exec')
+const apiUrl       = ref('https://script.google.com/macros/s/AKfycbxdTG6F7E070ng_bDL1h1-k3SqhjTBjggWmsWciafM-d_zwjUeWaSXthvNOlhclP2Xd8g/exec')
 const loading      = ref(true)
 const tableNumber  = ref('')
 const note         = ref('')

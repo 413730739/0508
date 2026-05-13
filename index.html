@@ -64,6 +64,9 @@
         >{{ cat }}</div>
       </div>
 
+      <!-- 載入中提示 -->
+      <div v-if="loading" class="empty">美味菜單讀取中...</div>
+
       <!-- 菜單列表 -->
       <div
         v-for="item in filteredMenu"
@@ -90,22 +93,24 @@
 
       <div v-if="cart.length > 0">
         <div class="total">合計：${{ totalAmount }}</div>
-        <button class="btn-order" @click="submitOrder">送出訂單</button>
+        <button class="btn-order" @click="submitOrder" :disabled="isSubmitting">
+          {{ isSubmitting ? '訂單傳送中...' : '送出訂單' }}
+        </button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- 引入 Vue -->
-<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 <script>
 Vue.createApp({
   data() {
     return {
-      // 把你的 Apps Script URL 貼在這裡
-    apiUrl: 'https://script.google.com/macros/s/AKfycbyWxzQn064nejZTWhE0LeaQQrTTTtaknWwJwFwncMhpYbts01H5tqV2-TCpZCgJLXR0NA/exec',
-    menu: [],          // 從 API 載入
-    loading: true,     // 載入狀態
+      apiUrl: 'https://script.google.com/macros/s/AKfycbxdTG6F7E070ng_bDL1h1-k3SqhjTBjggWmsWciafM-d_zwjUeWaSXthvNOlhclP2Xd8g/exec',
+      menu: [],
+      loading: true,
+      isSubmitting: false, // 新增：送出狀態
       activeCategory: '全部',
       cart: []   // [{ id, name, emoji, price, qty }]
     }
@@ -158,22 +163,29 @@ Vue.createApp({
 
   // 送出訂單
   async submitOrder() {
-    if (this.cart.length === 0) return;
-    
-    const res = await fetch(this.apiUrl, {
-      method: 'POST',
-      body: JSON.stringify({
-        action: 'submitOrder',
-        tableNumber: '無', // 目前 data 中無此變數，暫填「無」
-        items: this.cart,   // 修正：使用 this.cart 而不是 orderItems
-        totalAmount: this.totalAmount,
-        note: '',           // 目前 data 中無此變數
+    if (this.cart.length === 0 || this.isSubmitting) return;
+
+    this.isSubmitting = true; // 開始處理
+    try {
+      const res = await fetch(this.apiUrl, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'submitOrder',
+          tableNumber: '無',
+          items: this.cart,
+          totalAmount: this.totalAmount,
+          note: '',
+        })
       })
-    })
-    const data = await res.json()
-    if (data.success) {
-      alert('訂單送出成功！編號：' + data.data.orderId)
-      this.cart = []
+      const data = await res.json()
+      if (data.success) {
+        alert('訂單送出成功！編號：' + data.data.orderId)
+        this.cart = []
+      }
+    } catch (e) {
+      alert('送出失敗，請檢查網路連線')
+    } finally {
+      this.isSubmitting = false; // 結束處理
     }
   }
   },
