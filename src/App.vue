@@ -24,12 +24,17 @@
     </div>
 
     <!-- 菜單格 -->
-    <div class="menu-grid">
+    <div v-if="loading" class="loading">
+      ⏳ 載入菜單中...
+    </div>
+    <div v-else class="menu-grid">
       <div
         v-for="item in filteredMenu" :key="item.id"
         class="menu-card"
         :class="{ 'in-cart': getQty(item.id) > 0 }"
       >
+        <!-- 顯示來自試算表的 tag (招牌/熱門) -->
+        <span v-if="item.tag" class="badge">{{ item.tag }}</span>
         <span class="emoji">{{ item.emoji }}</span>
         <p class="name">{{ item.name }}</p>
         <p class="desc">{{ item.desc }}</p>
@@ -69,6 +74,7 @@
       <div class="success-card">
         <div class="icon">🎉</div>
         <h2>訂單已送出！</h2>
+        <p v-if="lastOrder && lastOrder.id">訂單編號：{{ lastOrder.id }}</p>
         <p>桌號：{{ lastOrder.table }}</p>
         <ul>
           <li v-for="item in lastOrder.items" :key="item.id">
@@ -83,9 +89,11 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 // 資料
+const apiUrl       = ref('https://script.google.com/macros/s/AKfycbxhHW-bUMau5koRy0GKVuXMlWkULPOqfhEHODdHjlmbYKaxP5Gyq7MKAsTrDgSMvnTwiQ/exec')
+const loading      = ref(true)
 const tableNumber  = ref('')
 const note         = ref('')
 const activeCategory = ref('全部')
@@ -93,26 +101,38 @@ const showCart     = ref(false)
 const orderDone    = ref(false)
 const lastOrder    = ref(null)
 const cart         = ref([])
-
-const menu = [
-  { id: 1, category: '麵飯', emoji: '🍜', name: '滷肉飯', desc: '祖傳配方香滷豬肉',  price: 50  },
-  { id: 2, category: '麵飯', emoji: '🍲', name: '牛肉麵', desc: '紅燒湯頭燉四小時',  price: 130 },
-  { id: 3, category: '麵飯', emoji: '🥣', name: '排骨飯', desc: '酥炸排骨附泡菜',    price: 90  },
-  { id: 4, category: '小菜', emoji: '🥚', name: '滷蛋',   desc: '入味滷蛋兩顆',      price: 20  },
-  { id: 5, category: '小菜', emoji: '🥬', name: '燙青菜', desc: '當日市場新鮮時蔬',  price: 30  },
-  { id: 6, category: '湯品', emoji: '🍥', name: '貢丸湯', desc: '手工貢丸Q彈有勁',   price: 35  },
-  { id: 7, category: '飲料', emoji: '🧋', name: '紅茶',   desc: '自製冷泡大葉紅茶',  price: 25  },
-]
+const menu         = ref([])
 
 // 計算屬性
-const categories   = computed(() => ['全部', ...new Set(menu.map(i => i.category))])
+const categories   = computed(() => ['全部', ...new Set(menu.value.map(i => i.category))])
 const filteredMenu = computed(() =>
-  activeCategory.value === '全部' ? menu : menu.filter(i => i.category === activeCategory.value)
+  activeCategory.value === '全部' ? menu.value : menu.value.filter(i => i.category === activeCategory.value)
 )
 const totalQty     = computed(() => cart.value.reduce((s, i) => s + i.qty, 0))
 const totalAmount  = computed(() => cart.value.reduce((s, i) => s + i.price * i.qty, 0))
 
 // 方法
+async function loadMenu() {
+  try {
+    const res  = await fetch(apiUrl.value + '?action=getMenu')
+    const data = await res.json()
+    if (data.success) {
+      // 過濾掉無效品項（確保 ID 與 名稱皆存在，避免顯示試算表中的空白行）
+      menu.value = data.data.filter(item => item.id && item.name)
+    } else {
+      console.error('API 錯誤:', data.error)
+    }
+  } catch (e) {
+    console.error('載入菜單失敗', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => {
+  loadMenu()
+})
+
 function getQty(id) {
   return cart.value.find(i => i.id === id)?.qty ?? 0
 }
@@ -128,16 +148,39 @@ function minus(id) {
   found.qty--
   if (found.qty === 0) cart.value = cart.value.filter(i => i.id !== id)
 }
-function submit() {
-  lastOrder.value = {
-    table: tableNumber.value,
-    items: [...cart.value],
-    total: totalAmount.value,
-    note:  note.value,
+async function submit() {
+  try {
+    const res = await fetch(apiUrl.value, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: 'submitOrder',
+        tableNumber: tableNumber.value,
+        items: cart.value,
+        totalAmount: totalAmount.value,
+        note: note.value,
+      })
+    })
+    const text = await res.text() // 先轉成純文字，避免 JSON 解析失敗看不到報錯
+    const data = JSON.parse(text)
+    if (data.success) {
+      lastOrder.value = {
+        id:    data.data.orderId,
+        table: tableNumber.value,
+        items: [...cart.value],
+        total: totalAmount.value,
+        note:  note.value,
+      }
+      orderDone.value = true
+      cart.value = []
+      showCart.value = false
+    } else {
+      alert('送出失敗：' + (data.error || data.message || '未知錯誤'))
+    }
+  } catch (e) {
+    console.error('送出訂單失敗', e)
+    alert('網路錯誤，請稍後再試')
   }
-  orderDone.value = true
-  cart.value = []
-  showCart.value = false
 }
 function reset() {
   orderDone.value  = false
@@ -157,7 +200,7 @@ h1 { color: #c84b2f; margin: 0; }
 .tab { padding: 5px 14px; border: 1px solid #ccc; border-radius: 99px; background: white; cursor: pointer; }
 .tab.active { background: #2a1f14; color: white; border-color: #2a1f14; }
 .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
-.menu-card { background: white; border: 1px solid #ddd; border-radius: 12px; padding: 12px; }
+.menu-card { background: white; border: 1px solid #ddd; border-radius: 12px; padding: 12px; position: relative; }
 .menu-card.in-cart { border-color: #c9962a; background: #fef9ec; }
 .emoji { font-size: 28px; }
 .name  { font-weight: bold; margin: 4px 0; }
@@ -167,6 +210,7 @@ h1 { color: #c84b2f; margin: 0; }
 .btn-add { padding: 4px 10px; background: #c84b2f; color: white; border: none; border-radius: 6px; cursor: pointer; }
 .qty-control { display: flex; gap: 6px; align-items: center; }
 .qty-control button { width: 24px; height: 24px; border-radius: 50%; background: #2a1f14; color: white; border: none; cursor: pointer; }
+.badge { position: absolute; top: 10px; right: 10px; background: #ffec3d; color: #cf1322; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
 .cart-panel { position: fixed; right: 20px; bottom: 20px; width: 300px; background: white; border: 1px solid #ddd; border-radius: 12px; padding: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
 .cart-row   { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; }
 .cart-note  { margin: 10px 0; }
@@ -177,4 +221,5 @@ h1 { color: #c84b2f; margin: 0; }
 .success    { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; }
 .success-card { background: white; border-radius: 16px; padding: 2rem; text-align: center; max-width: 360px; width: 90%; }
 .icon { font-size: 48px; }
+.loading { text-align: center; padding: 40px; color: #888; width: 100%; }
 </style>
